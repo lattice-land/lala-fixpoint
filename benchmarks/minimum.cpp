@@ -36,12 +36,11 @@ struct MinimumData {
 __global__ void compute_min(MinimumData* m_ptr) {
   MinimumData& m = *m_ptr;
   assert(m.data.size() % (blockDim.x * gridDim.x) == 0);
-  assert(gridDim.x == 0);
-  __shared__ BlockAsynchronousFixpointGPU<true> fp_engine;
+  assert(gridDim.x == 1);
+  BlockAsynchronousFixpointGPU fp_engine;
   size_t chunk_size = m.data.size() / gridDim.x;
-  __syncthreads();
   m.iterations = fp_engine.fixpoint(
-    chunk_size,
+    static_cast<int>(chunk_size),
     [&](int i) { return m.min_val.meet(m.data[chunk_size * blockIdx.x + i]); }
   );
 }
@@ -66,7 +65,7 @@ int main(int argc, char** argv) {
   // On CPU, using a sequential fixpoint algorithm.
   GaussSeidelIteration fp_engine;
   UB<int> cpu_min_val;
-  fp_engine.iterate(gpu_data->data.size(), [&](int i) { return cpu_min_val.meet(gpu_data->data[i]); });
+  fp_engine.iterate(AllOf{static_cast<int>(gpu_data->data.size())}, [&](int i) { return cpu_min_val.meet(gpu_data->data[i]); });
   std::cout << "CPU Minimum: " << cpu_min_val << std::endl;
   if(cpu_min_val != gpu_data->min_val) {
     std::cout << "!! error detected" << std::endl;
